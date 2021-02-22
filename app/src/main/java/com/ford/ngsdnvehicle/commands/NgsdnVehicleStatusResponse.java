@@ -3,19 +3,19 @@ package com.ford.ngsdnvehicle.commands;
 import java.util.Optional;
 
 public interface NgsdnVehicleStatusResponse {
-    StatusCodes getStatus();
+    int getStatus();
 
     NgsdnVehicleStatusImpl getVehicleStatus();
 
     Optional<Boolean> getDoorPresentStatuses();
 
-    Optional<Object> getCommandEventData();
+    Optional<CommandEventData> getCommandEventData();
 
-    Optional<Object> getWifiSettingsData();
+    Optional<WifiSettingsData> getWifiSettingsData();
 
-    Optional<Object> getTrailerLightCheckFailureReason();
+    Optional<String> getTrailerLightCheckFailureReason();
 
-    Optional<Object> getRemoteStartFailures();
+    Optional<RemoteStartFailures> getRemoteStartFailures();
 
-    Optional<Object> getRemoteLockFailures();
+    Optional<RemoteLockFailures> getRemoteLockFailures();
 }

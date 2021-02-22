@@ -1,6 +1,10 @@
 package com.ford.ngsdnvehicle.commands;
 
-public class RemoteLockFailureException {
-    public RemoteLockFailureException(StatusCodes status, Object remoteLockFailureErrors) {
+import com.google.common.base.Optional;
+
+import java.util.List;
+
+public class RemoteLockFailureException extends Throwable{
+    public RemoteLockFailureException(int status, Optional<RemoteLockFailures> remoteLockFailureErrors) {
     }
 }

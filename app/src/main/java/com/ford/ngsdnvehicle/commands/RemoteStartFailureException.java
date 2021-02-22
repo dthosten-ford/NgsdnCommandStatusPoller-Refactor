@@ -1,6 +1,8 @@
 package com.ford.ngsdnvehicle.commands;
 
-public class RemoteStartFailureException {
-    public RemoteStartFailureException(StatusCodes status, Object remoteStartFailureErrors) {
+import java.util.List;
+
+public class RemoteStartFailureException extends Throwable{
+    public RemoteStartFailureException(int status, List<String> remoteStartFailureErrors) {
     }
 }
