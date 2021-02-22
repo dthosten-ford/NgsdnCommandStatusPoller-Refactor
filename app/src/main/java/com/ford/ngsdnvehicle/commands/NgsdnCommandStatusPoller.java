@@ -23,6 +23,10 @@ package com.ford.ngsdnvehicle.commands;
 //import com.ford.utils.PollingStrategyUtil;
 //import com.ford.utils.TimeProvider;
 
+import android.os.Build;
+
+import androidx.annotation.RequiresApi;
+
 import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
@@ -31,13 +35,14 @@ import io.reactivex.Flowable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
 import io.reactivex.functions.Function;
-//
+//smell: inject this value, don't rely on static ref
 //import static com.ford.ngsdnvehicle.models.CommandEventData.LOCK_SECURE_WARNING_ON;
 
 public class NgsdnCommandStatusPoller {
 
     private static final int POLLING_DELAY = 5;
     private static final int POLLING_STATUS_CODE = 552;
+    private static final Object LOCK_SECURE_WARNING_ON = "sampleLOCK_SECURE_WARNING_ONmsgForTestingSinceTheresHardStaticRef";
 
     private final Scheduler computationScheduler;
     private final TimeProvider timeProvider;
@@ -51,16 +56,19 @@ public class NgsdnCommandStatusPoller {
         this.vehicleProvider = vehicleProvider;
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.N)
     Single<NgsdnVehicleStatusResponse> pollCommandStatus(final String vin, final String commandId, final NgsdnVehicleCommandStrategy ngsdnVehicleCommandStrategy) {
         return pollCommandStatusCustomTime(vin, commandId, ngsdnVehicleCommandStrategy, POLLING_DELAY);
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.N)
     Single<NgsdnVehicleStatusResponse> pollCommandStatusCustomTime(final String vin, final String commandId, final NgsdnVehicleCommandStrategy ngsdnVehicleCommandStrategy, final int pollInterval) {
         final long requestStartTime = timeProvider.currentTimeMillis();
         return Single.timer(pollInterval, TimeUnit.SECONDS, computationScheduler)
                 .flatMap(ignore -> getCommandStatus(vin, commandId, ngsdnVehicleCommandStrategy, requestStartTime));
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.N)
     private Single<NgsdnVehicleStatusResponse> getCommandStatus(final String vin, final String commandId, final NgsdnVehicleCommandStrategy ngsdnVehicleCommandStrategy, final long requestStartTime) {
         return ngsdnVehicleCommandStrategy.getCommandStatus(vin, commandId)
                 .flatMap(ngsdnVehicleStatusResponse -> {
