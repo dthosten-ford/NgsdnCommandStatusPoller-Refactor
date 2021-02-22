@@ -8,31 +8,31 @@
 
 package com.ford.ngsdnvehicle.commands;
 
-import com.ford.networkutils.utils.StatusCarryingException;
-import com.ford.networkutils.utils.StatusCodes;
-import com.ford.ngsdncommon.models.NgsdnException;
-import com.ford.ngsdnvehicle.models.FirmwareUpgradingException;
-import com.ford.ngsdnvehicle.models.NgsdnVehicleStatusImpl;
-import com.ford.ngsdnvehicle.models.NgsdnVehicleStatusResponse;
-import com.ford.ngsdnvehicle.models.RemoteLockFailureException;
-import com.ford.ngsdnvehicle.models.RemoteStartFailureException;
-import com.ford.ngsdnvehicle.models.TrailerLightCheckException;
-import com.ford.ngsdnvehicle.providers.NgsdnVehicleProvider;
-import com.ford.ngsdnvehicle.strategies.NgsdnVehicleCommandStrategy;
-import com.ford.rxutils.qualifiers.ComputationScheduler;
-import com.ford.utils.PollingStrategyUtil;
-import com.ford.utils.TimeProvider;
+//import com.ford.networkutils.utils.StatusCarryingException;
+//import com.ford.networkutils.utils.StatusCodes;
+//import com.ford.ngsdncommon.models.NgsdnException;
+//import com.ford.ngsdnvehicle.models.FirmwareUpgradingException;
+//import com.ford.ngsdnvehicle.models.NgsdnVehicleStatusImpl;
+//import com.ford.ngsdnvehicle.models.NgsdnVehicleStatusResponse;
+//import com.ford.ngsdnvehicle.models.RemoteLockFailureException;
+//import com.ford.ngsdnvehicle.models.RemoteStartFailureException;
+//import com.ford.ngsdnvehicle.models.TrailerLightCheckException;
+//import com.ford.ngsdnvehicle.providers.NgsdnVehicleProvider;
+//import com.ford.ngsdnvehicle.strategies.NgsdnVehicleCommandStrategy;
+//import com.ford.rxutils.qualifiers.ComputationScheduler;
+//import com.ford.utils.PollingStrategyUtil;
+//import com.ford.utils.TimeProvider;
 
 import java.util.concurrent.TimeUnit;
 
-import javax.inject.Inject;
-
-import io.reactivex.Flowable;
-import io.reactivex.Scheduler;
-import io.reactivex.Single;
-import io.reactivex.functions.Function;
-
-import static com.ford.ngsdnvehicle.models.CommandEventData.LOCK_SECURE_WARNING_ON;
+//import javax.inject.Inject;
+//
+//import io.reactivex.Flowable;
+//import io.reactivex.Scheduler;
+//import io.reactivex.Single;
+//import io.reactivex.functions.Function;
+//
+//import static com.ford.ngsdnvehicle.models.CommandEventData.LOCK_SECURE_WARNING_ON;
 
 public class NgsdnCommandStatusPoller {
 
