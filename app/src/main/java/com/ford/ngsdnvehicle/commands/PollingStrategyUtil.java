@@ -1,4 +1,4 @@
 package com.ford.ngsdnvehicle.commands;
 
-public static class PollingStrategyUtil {
+public class PollingStrategyUtil {
 }
