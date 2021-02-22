@@ -1,2 +1,13 @@
 include ':app'
 rootProject.name = "NgsdnCommandStatusPoller"
+ext {
+    rxjava2_version = '2.2.0'
+    rx2android_version = '2.0.2'
+    rxidler_version = '0.9.1'
+
+    rxjavaDependencies = [
+            rxjava2_lib: "io.reactivex.rxjava2:rxjava:${rxjava2_version}",
+            rx2_android: "io.reactivex.rxjava2:rxandroid:${rx2android_version}",
+            rx2_idler  : "com.squareup.rx.idler:rx2-idler:${rxidler_version}"
+    ]
+}
