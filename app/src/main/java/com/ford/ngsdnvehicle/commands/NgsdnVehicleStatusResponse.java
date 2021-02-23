@@ -1,8 +1,6 @@
 package com.ford.ngsdnvehicle.commands;
 
-import java.util.Optional;
-
-import io.reactivex.Single;
+import com.google.common.base.Optional;
 
 public interface NgsdnVehicleStatusResponse {
     int getStatus();

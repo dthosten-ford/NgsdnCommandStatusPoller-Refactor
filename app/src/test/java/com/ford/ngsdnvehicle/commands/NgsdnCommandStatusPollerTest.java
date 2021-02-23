@@ -423,6 +423,7 @@ public class NgsdnCommandStatusPollerTest {
         testObserver.assertError(new RemoteStartFailureException(StatusCodes.ERROR_COMMAND_SENT_FAILED_RESPONSE, error_message));
     }
 
+
     @Test
     public void pollCommandStatus_remoteLockFailsBecauseDoubleLock_notifyRemoteLockFailureException() {
         RemoteLockFailure remoteLockFailure = mock(RemoteLockFailure.class);

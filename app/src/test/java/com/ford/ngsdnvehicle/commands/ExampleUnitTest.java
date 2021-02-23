@@ -17,6 +17,6 @@ public class ExampleUnitTest {
 
     @Test
     public void testPoller() {
-        NgsdnCommandStatusPoller poller = new NgsdnCommandStatusPoller();
+//        NgsdnCommandStatusPoller poller = new NgsdnCommandStatusPoller();
     }
 }
