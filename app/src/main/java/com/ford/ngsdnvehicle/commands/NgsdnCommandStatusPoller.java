@@ -38,6 +38,9 @@ import io.reactivex.functions.Function;
 //smell: inject this value, don't rely on static ref
 //import static com.ford.ngsdnvehicle.models.CommandEventData.LOCK_SECURE_WARNING_ON;
 
+import java.util.*;
+import java.util.function.*;
+
 public class NgsdnCommandStatusPoller {
 
     private static final int POLLING_DELAY = 5;
@@ -76,8 +79,10 @@ public class NgsdnCommandStatusPoller {
                     switch (ngsdnVehicleStatusResponse.getStatus()) {
                         case StatusCodes.SUCCESS:
                         case StatusCodes.COMMAND_PROCESSING:
+                            //smell: using impl instead of interface
                             NgsdnVehicleStatusImpl vehicleStatus = ngsdnVehicleStatusResponse.getVehicleStatus();
                             if (vehicleStatus != null) {
+                                //Smell: I don't think we are deep enough.  /sarcasm
                                 if (vehicleStatus.getDeepSleepInProgress().isPresent() && vehicleStatus.getDeepSleepInProgress().get().getValue().or(false)) {
                                     return Single.error(new NgsdnException(StatusCodes.ERROR_DEEP_SLEEP_V2));
                                 }

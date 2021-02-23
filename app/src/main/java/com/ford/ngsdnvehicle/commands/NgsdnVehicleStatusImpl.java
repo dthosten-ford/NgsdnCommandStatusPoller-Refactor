@@ -1,9 +1,14 @@
 package com.ford.ngsdnvehicle.commands;
 
+import java.util.BitSet;
 import java.util.Optional;
 
-public interface NgsdnVehicleStatusImpl {
-    Optional<Object> getDeepSleepInProgress();
+import io.reactivex.Single;
 
-    Optional<Object> getFirmwareUpgInProgress();
+public interface NgsdnVehicleStatusImpl {
+
+    Optional<SingleValueField<Boolean>> getDeepSleepInProgress();
+
+    Optional<SingleValueField<Boolean>> getFirmwareUpgInProgress();
+
 }
