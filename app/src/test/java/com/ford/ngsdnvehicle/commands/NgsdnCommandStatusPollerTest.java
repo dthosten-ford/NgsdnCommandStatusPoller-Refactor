@@ -36,7 +36,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Single;
@@ -410,8 +409,7 @@ public class NgsdnCommandStatusPollerTest {
     @Test
     public void pollCommandStatus_remoteStartFails_notifyRemoteStartFailureException() {
         RemoteStartFailures remoteStartFailures = mock(RemoteStartFailures.class);
-        List<String> error_message = Collections.singletonList("Error Message");
-        when(remoteStartFailures.getRemoteStartFailureErrors()).thenReturn(error_message);
+        when(remoteStartFailures.getRemoteStartFailureErrors()).thenReturn(Collections.singletonList("Error Message"));
         when(commandStatusResponse.getStatus()).thenReturn(StatusCodes.ERROR_COMMAND_SENT_FAILED_RESPONSE);
         when(commandStatusResponse.getRemoteStartFailures()).thenReturn(Optional.of(remoteStartFailures));
 
@@ -420,9 +418,8 @@ public class NgsdnCommandStatusPollerTest {
         testScheduler.advanceTimeBy(5, TimeUnit.SECONDS);
 
         verify(ngsdnVehicleCommandStrategy).getCommandStatus(VIN, COMMAND_ID);
-        testObserver.assertError(new RemoteStartFailureException(StatusCodes.ERROR_COMMAND_SENT_FAILED_RESPONSE, error_message));
+        testObserver.assertError(new RemoteStartFailureException(StatusCodes.ERROR_COMMAND_SENT_FAILED_RESPONSE, Collections.singletonList("Error Message")));
     }
-
 
     @Test
     public void pollCommandStatus_remoteLockFailsBecauseDoubleLock_notifyRemoteLockFailureException() {
