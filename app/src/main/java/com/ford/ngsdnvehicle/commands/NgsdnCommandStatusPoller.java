@@ -23,10 +23,6 @@ package com.ford.ngsdnvehicle.commands;
 //import com.ford.utils.PollingStrategyUtil;
 //import com.ford.utils.TimeProvider;
 
-import android.os.Build;
-
-import androidx.annotation.RequiresApi;
-
 import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
@@ -35,11 +31,8 @@ import io.reactivex.Flowable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
 import io.reactivex.functions.Function;
-//smell: inject this value, don't rely on static ref
-//import static com.ford.ngsdnvehicle.models.CommandEventData.LOCK_SECURE_WARNING_ON;
 
-import java.util.*;
-import java.util.function.*;
+//import static com.ford.ngsdnvehicle.models.CommandEventData.LOCK_SECURE_WARNING_ON;
 
 public class NgsdnCommandStatusPoller {
 
@@ -59,30 +52,24 @@ public class NgsdnCommandStatusPoller {
         this.vehicleProvider = vehicleProvider;
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.N)
     Single<NgsdnVehicleStatusResponse> pollCommandStatus(final String vin, final String commandId, final NgsdnVehicleCommandStrategy ngsdnVehicleCommandStrategy) {
         return pollCommandStatusCustomTime(vin, commandId, ngsdnVehicleCommandStrategy, POLLING_DELAY);
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.N)
     Single<NgsdnVehicleStatusResponse> pollCommandStatusCustomTime(final String vin, final String commandId, final NgsdnVehicleCommandStrategy ngsdnVehicleCommandStrategy, final int pollInterval) {
         final long requestStartTime = timeProvider.currentTimeMillis();
         return Single.timer(pollInterval, TimeUnit.SECONDS, computationScheduler)
                 .flatMap(ignore -> getCommandStatus(vin, commandId, ngsdnVehicleCommandStrategy, requestStartTime));
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.N)
     private Single<NgsdnVehicleStatusResponse> getCommandStatus(final String vin, final String commandId, final NgsdnVehicleCommandStrategy ngsdnVehicleCommandStrategy, final long requestStartTime) {
         return ngsdnVehicleCommandStrategy.getCommandStatus(vin, commandId)
                 .flatMap(ngsdnVehicleStatusResponse -> {
-                    //Smell: too much interweaving RX with BizLogic.  Get data, return data, do RX magic.
                     switch (ngsdnVehicleStatusResponse.getStatus()) {
                         case StatusCodes.SUCCESS:
                         case StatusCodes.COMMAND_PROCESSING:
-                            //smell: using impl instead of interface
                             NgsdnVehicleStatusImpl vehicleStatus = ngsdnVehicleStatusResponse.getVehicleStatus();
                             if (vehicleStatus != null) {
-                                //Smell: I don't think we are deep enough.  /sarcasm
                                 if (vehicleStatus.getDeepSleepInProgress().isPresent() && vehicleStatus.getDeepSleepInProgress().get().getValue().or(false)) {
                                     return Single.error(new NgsdnException(StatusCodes.ERROR_DEEP_SLEEP_V2));
                                 }
@@ -106,7 +93,6 @@ public class NgsdnCommandStatusPoller {
                                 vehicleProvider.updateCommandEventStatus(vin, ngsdnVehicleStatusResponse);
                                 return Single.just(ngsdnVehicleStatusResponse);
                             } else if (ngsdnVehicleStatusResponse.getRemoteStartFailures().isPresent()) {
-                                //smell: object construction.push to factory
                                 return Single.error(new RemoteStartFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteStartFailures().get().getRemoteStartFailureErrors()));
                             } else if (ngsdnVehicleStatusResponse.getTrailerLightCheckFailureReason().isPresent()) {
                                 return Single.error(new TrailerLightCheckException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getTrailerLightCheckFailureReason().get()));
@@ -125,11 +111,9 @@ public class NgsdnCommandStatusPoller {
                     }
                 })
                 .retryWhen(observable -> observable.flatMap((Function<Throwable, Flowable<Long>>) e -> {
-                    //smell: using reflection. can try/catch filter simplify?
                     if (e instanceof StatusCarryingException) {
                         StatusCarryingException error = (StatusCarryingException) e;
                         if (error.getStatusCode() == POLLING_STATUS_CODE) {
-                            //smell: Is this a static?  wrap with interface.
                             if (PollingStrategyUtil.hasRequestTimedOut(requestStartTime, timeProvider.currentTimeMillis())) {
                                 return Flowable.error(new NgsdnException(StatusCodes.ERROR_POLL_TIMEOUT));
                             } else {
