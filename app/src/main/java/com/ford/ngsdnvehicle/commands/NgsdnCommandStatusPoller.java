@@ -62,6 +62,12 @@ public class NgsdnCommandStatusPoller {
                 .flatMap(ignore -> getCommandStatus(vin, commandId, ngsdnVehicleCommandStrategy, requestStartTime));
     }
 
+    // refactor this in kotlin
+    // remove negative logic in if statement
+    // complicated if statements
+    // complicated return statement
+    // if code block == null can bee made into a method
+    // duplicate code
     private Single<NgsdnVehicleStatusResponse> getCommandStatus(final String vin, final String commandId, final NgsdnVehicleCommandStrategy ngsdnVehicleCommandStrategy, final long requestStartTime) {
         return ngsdnVehicleCommandStrategy.getCommandStatus(vin, commandId)
                 .flatMap(ngsdnVehicleStatusResponse -> {
@@ -69,23 +75,26 @@ public class NgsdnCommandStatusPoller {
                         case StatusCodes.SUCCESS:
                         case StatusCodes.COMMAND_PROCESSING:
                             NgsdnVehicleStatusImpl vehicleStatus = ngsdnVehicleStatusResponse.getVehicleStatus();
-                            if (vehicleStatus != null) {
+                            if (vehicleStatus == null) {
+                                if (ngsdnVehicleStatusResponse.getDoorPresentStatuses() == null) {
+                                    if (ngsdnVehicleStatusResponse.getCommandEventData().isPresent()) {
+                                        return getEventData(vin, ngsdnVehicleStatusResponse);
+                                    } else if (ngsdnVehicleStatusResponse.getWifiSettingsData().isPresent()) {
+                                        vehicleProvider.updateWifiSettings(vin, ngsdnVehicleStatusResponse);
+                                        return Single.just(ngsdnVehicleStatusResponse);
+                                    } else {
+                                        return Single.just(ngsdnVehicleStatusResponse);
+                                    }
+                                } else {
+                                    return getEventDataStart(vin, ngsdnVehicleStatusResponse);
+                                }
+                            } else {
                                 if (vehicleStatus.getDeepSleepInProgress().isPresent() && vehicleStatus.getDeepSleepInProgress().get().getValue().or(false)) {
                                     return Single.error(new NgsdnException(StatusCodes.ERROR_DEEP_SLEEP_V2));
                                 }
-
                                 if (vehicleStatus.getFirmwareUpgInProgress().isPresent() && vehicleStatus.getFirmwareUpgInProgress().get().getValue().or(false)) {
                                     return Single.error(new NgsdnException(StatusCodes.TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2));
                                 }
-                                return Single.just(ngsdnVehicleStatusResponse);
-                            } else if (ngsdnVehicleStatusResponse.getDoorPresentStatuses() != null) {
-                                return getEventDataStart(vin, ngsdnVehicleStatusResponse);
-                            } else if (ngsdnVehicleStatusResponse.getCommandEventData().isPresent()) {
-                                return getEventData(vin, ngsdnVehicleStatusResponse);
-                            } else if (ngsdnVehicleStatusResponse.getWifiSettingsData().isPresent()) {
-                                vehicleProvider.updateWifiSettings(vin, ngsdnVehicleStatusResponse);
-                                return Single.just(ngsdnVehicleStatusResponse);
-                            } else {
                                 return Single.just(ngsdnVehicleStatusResponse);
                             }
                         case StatusCodes.ERROR_COMMAND_SENT_FAILED_RESPONSE:
