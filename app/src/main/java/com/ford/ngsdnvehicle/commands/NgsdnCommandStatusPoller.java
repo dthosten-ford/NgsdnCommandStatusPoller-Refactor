@@ -30,6 +30,7 @@ import javax.inject.Inject;
 import io.reactivex.Flowable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
+import io.reactivex.SingleSource;
 import io.reactivex.functions.Function;
 
 //import static com.ford.ngsdnvehicle.models.CommandEventData.LOCK_SECURE_WARNING_ON;
@@ -74,31 +75,9 @@ public class NgsdnCommandStatusPoller {
                     switch (ngsdnVehicleStatusResponse.getStatus()) {
                         case StatusCodes.SUCCESS:
                         case StatusCodes.COMMAND_PROCESSING:
-                            NgsdnVehicleStatusImpl vehicleStatus = ngsdnVehicleStatusResponse.getVehicleStatus();
-                            if (vehicleStatus == null) {
-                                if (ngsdnVehicleStatusResponse.getDoorPresentStatuses() == null) {
-                                    if (ngsdnVehicleStatusResponse.getCommandEventData().isPresent()) {
-                                        return getEventData(vin, ngsdnVehicleStatusResponse);
-                                    } else if (ngsdnVehicleStatusResponse.getWifiSettingsData().isPresent()) {
-                                        vehicleProvider.updateWifiSettings(vin, ngsdnVehicleStatusResponse);
-                                        return Single.just(ngsdnVehicleStatusResponse);
-                                    } else {
-                                        return Single.just(ngsdnVehicleStatusResponse);
-                                    }
-                                } else {
-                                    return getEventDataStart(vin, ngsdnVehicleStatusResponse);
-                                }
-                            } else {
-                                if (vehicleStatus.getDeepSleepInProgress().isPresent() && vehicleStatus.getDeepSleepInProgress().get().getValue().or(false)) {
-                                    return Single.error(new NgsdnException(StatusCodes.ERROR_DEEP_SLEEP_V2));
-                                }
-                                if (vehicleStatus.getFirmwareUpgInProgress().isPresent() && vehicleStatus.getFirmwareUpgInProgress().get().getValue().or(false)) {
-                                    return Single.error(new NgsdnException(StatusCodes.TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2));
-                                }
-                                return Single.just(ngsdnVehicleStatusResponse);
-                            }
+                            return getNgsdnVehicleStatus(vin, ngsdnVehicleStatusResponse);
                         case StatusCodes.ERROR_COMMAND_SENT_FAILED_RESPONSE:
-                            if (ngsdnVehicleStatusResponse.getCommandEventData().isPresent() && ngsdnVehicleStatusResponse.getCommandEventData().get().getLockSecureWarning() == LOCK_SECURE_WARNING_ON) {
+                            if (isLockSecureWarningOn(ngsdnVehicleStatusResponse)) {
                                 vehicleProvider.updateCommandEventStatus(vin, ngsdnVehicleStatusResponse);
                                 return Single.just(ngsdnVehicleStatusResponse);
                             } else if (ngsdnVehicleStatusResponse.getRemoteStartFailures().isPresent()) {
@@ -142,6 +121,36 @@ public class NgsdnCommandStatusPoller {
                     }
                 })
                 .doAfterTerminate(() -> wasUpgrading = false);
+    }
+
+    private boolean isLockSecureWarningOn(NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
+        return ngsdnVehicleStatusResponse.getCommandEventData().isPresent() && ngsdnVehicleStatusResponse.getCommandEventData().get().getLockSecureWarning() == LOCK_SECURE_WARNING_ON;
+    }
+
+    private SingleSource<? extends NgsdnVehicleStatusResponse> getNgsdnVehicleStatus(String vin, NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
+        NgsdnVehicleStatusImpl vehicleStatus = ngsdnVehicleStatusResponse.getVehicleStatus();
+        if (vehicleStatus == null) {
+            if (ngsdnVehicleStatusResponse.getDoorPresentStatuses() == null) {
+                if (ngsdnVehicleStatusResponse.getCommandEventData().isPresent()) {
+                    return getEventData(vin, ngsdnVehicleStatusResponse);
+                } else if (ngsdnVehicleStatusResponse.getWifiSettingsData().isPresent()) {
+                    vehicleProvider.updateWifiSettings(vin, ngsdnVehicleStatusResponse);
+                    return Single.just(ngsdnVehicleStatusResponse);
+                } else {
+                    return Single.just(ngsdnVehicleStatusResponse);
+                }
+            } else {
+                return getEventDataStart(vin, ngsdnVehicleStatusResponse);
+            }
+        } else {
+            if (vehicleStatus.getDeepSleepInProgress().isPresent() && vehicleStatus.getDeepSleepInProgress().get().getValue().or(false)) {
+                return Single.error(new NgsdnException(StatusCodes.ERROR_DEEP_SLEEP_V2));
+            }
+            if (vehicleStatus.getFirmwareUpgInProgress().isPresent() && vehicleStatus.getFirmwareUpgInProgress().get().getValue().or(false)) {
+                return Single.error(new NgsdnException(StatusCodes.TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2));
+            }
+            return Single.just(ngsdnVehicleStatusResponse);
+        }
     }
 
     private Single<NgsdnVehicleStatusResponse> getEventData(String vin, NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
