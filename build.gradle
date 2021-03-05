@@ -1,0 +1,28 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+buildscript {
+    repositories {
+        google()
+        jcenter()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:4.1.0"
+        classpath "io.reactivex.rxjava2:rxjava:2.2.8"
+        classpath "io.reactivex.rxjava2:rxandroid:2.0.2"
+        classpath "com.squareup.rx.idler:rx2-idler:0.9.1"
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+//compile group: 'io.reactivex.rxjava2', name: 'rxjava', version: '2.1.1'
+allprojects {
+    repositories {
+        google()
+        jcenter()
+        mavenCentral()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
