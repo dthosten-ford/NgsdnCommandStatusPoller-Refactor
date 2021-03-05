@@ -35,6 +35,13 @@ import io.reactivex.Single;
 import io.reactivex.SingleSource;
 import io.reactivex.functions.Function;
 
+import static com.ford.ngsdnvehicle.commands.StatusCodes.COMMAND_PROCESSING;
+import static com.ford.ngsdnvehicle.commands.StatusCodes.ERROR_COMMAND_SENT_FAILED_RESPONSE;
+import static com.ford.ngsdnvehicle.commands.StatusCodes.SUCCESS;
+import static com.ford.ngsdnvehicle.commands.StatusCodes.TCU_FIRMWARE_UPGRADE_IN_PROGRESS;
+import static com.ford.ngsdnvehicle.commands.StatusCodes.TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2;
+import static io.reactivex.Single.error;
+
 //import static com.ford.ngsdnvehicle.models.CommandEventData.LOCK_SECURE_WARNING_ON;
 
 public class NgsdnCommandStatusPoller {
@@ -73,23 +80,23 @@ public class NgsdnCommandStatusPoller {
     // duplicate code
     private Single<NgsdnVehicleStatusResponse> getCommandStatus(final String vin, final String commandId, final NgsdnVehicleCommandStrategy ngsdnVehicleCommandStrategy, final long requestStartTime) {
         return ngsdnVehicleCommandStrategy.getCommandStatus(vin, commandId)
-                .flatMap(processStatusResponse(vin))
-                .doOnError(this::onErrorProcessing)
+                .flatMap(getNgsdnVehicleStatus(vin))
+                .doOnError(this::processFirmwareUpgradeError)
                 .retryWhen(onErrorRetry(requestStartTime))
                 .onErrorResumeNext(resumeOnError())
                 .doAfterTerminate(() -> wasUpgrading = false);
     }
 
-    private Function<NgsdnVehicleStatusResponse, SingleSource<? extends NgsdnVehicleStatusResponse>> processStatusResponse(String vin) {
+    private Function<NgsdnVehicleStatusResponse, SingleSource<? extends NgsdnVehicleStatusResponse>> getNgsdnVehicleStatus(String vin) {
         return ngsdnVehicleStatusResponse -> {
             switch (ngsdnVehicleStatusResponse.getStatus()) {
-                case StatusCodes.SUCCESS:
-                case StatusCodes.COMMAND_PROCESSING:
+                case SUCCESS:
+                case COMMAND_PROCESSING:
                     return getNgsdnVehicleStatus(vin, ngsdnVehicleStatusResponse);
-                case StatusCodes.ERROR_COMMAND_SENT_FAILED_RESPONSE:
+                case ERROR_COMMAND_SENT_FAILED_RESPONSE:
                     return commandErrorFailed(vin, ngsdnVehicleStatusResponse);
                 default:
-                    return Single.error(new NgsdnException(ngsdnVehicleStatusResponse.getStatus()));
+                    return error(new NgsdnException(ngsdnVehicleStatusResponse.getStatus()));
             }
         };
     }
@@ -98,9 +105,9 @@ public class NgsdnCommandStatusPoller {
         return throwable -> {
             if (throwable instanceof NgsdnException && wasUpgrading) {
                 int statusCode = ((StatusCarryingException) throwable).getStatusCode();
-                return Single.error(new FirmwareUpgradingException(statusCode));
+                return error(new FirmwareUpgradingException(statusCode));
             } else {
-                return Single.error(throwable);
+                return error(throwable);
             }
         };
     }
@@ -122,10 +129,15 @@ public class NgsdnCommandStatusPoller {
         });
     }
 
-    private void onErrorProcessing(Throwable throwable) {
-        if (new NgsdnException(StatusCodes.TCU_FIRMWARE_UPGRADE_IN_PROGRESS).equals(throwable) || new NgsdnException(StatusCodes.TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2).equals(throwable)) {
+    private void processFirmwareUpgradeError(Throwable throwable) {
+        if (hasUpgradeError(throwable)) {
             wasUpgrading = true;
         }
+    }
+
+    private boolean hasUpgradeError(Throwable throwable) {
+        return new NgsdnException(TCU_FIRMWARE_UPGRADE_IN_PROGRESS).equals(throwable) ||
+                new NgsdnException(TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2).equals(throwable);
     }
 
     private SingleSource<? extends NgsdnVehicleStatusResponse> commandErrorFailed(String vin, NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
@@ -133,13 +145,13 @@ public class NgsdnCommandStatusPoller {
             vehicleProvider.updateCommandEventStatus(vin, ngsdnVehicleStatusResponse);
             return Single.just(ngsdnVehicleStatusResponse);
         } else if (ngsdnVehicleStatusResponse.getRemoteStartFailures().isPresent()) {
-            return Single.error(new RemoteStartFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteStartFailures().get().getRemoteStartFailureErrors()));
+            return error(new RemoteStartFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteStartFailures().get().getRemoteStartFailureErrors()));
         } else if (ngsdnVehicleStatusResponse.getTrailerLightCheckFailureReason().isPresent()) {
-            return Single.error(new TrailerLightCheckException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getTrailerLightCheckFailureReason().get()));
+            return error(new TrailerLightCheckException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getTrailerLightCheckFailureReason().get()));
         } else if (ngsdnVehicleStatusResponse.getRemoteLockFailures().isPresent()) {
-            return Single.error(new RemoteLockFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteLockFailures().get().getRemoteLockFailureErrors()));
+            return error(new RemoteLockFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteLockFailures().get().getRemoteLockFailureErrors()));
         } else {
-            return Single.error(new NgsdnException(ngsdnVehicleStatusResponse.getStatus()));
+            return error(new NgsdnException(ngsdnVehicleStatusResponse.getStatus()));
         }
     }
 
@@ -164,10 +176,10 @@ public class NgsdnCommandStatusPoller {
             }
         } else {
             if (vehicleStatus.getDeepSleepInProgress().isPresent() && vehicleStatus.getDeepSleepInProgress().get().getValue().or(false)) {
-                return Single.error(new NgsdnException(StatusCodes.ERROR_DEEP_SLEEP_V2));
+                return error(new NgsdnException(StatusCodes.ERROR_DEEP_SLEEP_V2));
             }
             if (vehicleStatus.getFirmwareUpgInProgress().isPresent() && vehicleStatus.getFirmwareUpgInProgress().get().getValue().or(false)) {
-                return Single.error(new NgsdnException(StatusCodes.TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2));
+                return error(new NgsdnException(TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2));
             }
             return Single.just(ngsdnVehicleStatusResponse);
         }
