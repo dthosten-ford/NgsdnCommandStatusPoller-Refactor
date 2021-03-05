@@ -130,9 +130,7 @@ public class NgsdnCommandStatusPoller {
     }
 
     private void processFirmwareUpgradeError(Throwable throwable) {
-        if (hasUpgradeError(throwable)) {
-            wasUpgrading = true;
-        }
+        wasUpgrading = hasUpgradeError(throwable);
     }
 
     private boolean hasUpgradeError(Throwable throwable) {
@@ -141,18 +139,20 @@ public class NgsdnCommandStatusPoller {
     }
 
     private SingleSource<? extends NgsdnVehicleStatusResponse> commandErrorFailed(String vin, NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
+        SingleSource<NgsdnVehicleStatusResponse> ngsdnVehicleResponse;
         if (isLockSecureWarningOn(ngsdnVehicleStatusResponse)) {
             vehicleProvider.updateCommandEventStatus(vin, ngsdnVehicleStatusResponse);
-            return Single.just(ngsdnVehicleStatusResponse);
+            ngsdnVehicleResponse = Single.just(ngsdnVehicleStatusResponse);
         } else if (ngsdnVehicleStatusResponse.getRemoteStartFailures().isPresent()) {
-            return error(new RemoteStartFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteStartFailures().get().getRemoteStartFailureErrors()));
+            ngsdnVehicleResponse = error(new RemoteStartFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteStartFailures().get().getRemoteStartFailureErrors()));
         } else if (ngsdnVehicleStatusResponse.getTrailerLightCheckFailureReason().isPresent()) {
-            return error(new TrailerLightCheckException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getTrailerLightCheckFailureReason().get()));
+            ngsdnVehicleResponse = error(new TrailerLightCheckException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getTrailerLightCheckFailureReason().get()));
         } else if (ngsdnVehicleStatusResponse.getRemoteLockFailures().isPresent()) {
-            return error(new RemoteLockFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteLockFailures().get().getRemoteLockFailureErrors()));
+            ngsdnVehicleResponse = error(new RemoteLockFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteLockFailures().get().getRemoteLockFailureErrors()));
         } else {
-            return error(new NgsdnException(ngsdnVehicleStatusResponse.getStatus()));
+            ngsdnVehicleResponse = error(new NgsdnException(ngsdnVehicleStatusResponse.getStatus()));
         }
+        return ngsdnVehicleResponse;
     }
 
     private boolean isLockSecureWarningOn(NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
