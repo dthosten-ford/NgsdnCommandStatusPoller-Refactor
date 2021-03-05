@@ -23,6 +23,8 @@ package com.ford.ngsdnvehicle.commands;
 //import com.ford.utils.PollingStrategyUtil;
 //import com.ford.utils.TimeProvider;
 
+import org.reactivestreams.Publisher;
+
 import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
@@ -71,56 +73,74 @@ public class NgsdnCommandStatusPoller {
     // duplicate code
     private Single<NgsdnVehicleStatusResponse> getCommandStatus(final String vin, final String commandId, final NgsdnVehicleCommandStrategy ngsdnVehicleCommandStrategy, final long requestStartTime) {
         return ngsdnVehicleCommandStrategy.getCommandStatus(vin, commandId)
-                .flatMap(ngsdnVehicleStatusResponse -> {
-                    switch (ngsdnVehicleStatusResponse.getStatus()) {
-                        case StatusCodes.SUCCESS:
-                        case StatusCodes.COMMAND_PROCESSING:
-                            return getNgsdnVehicleStatus(vin, ngsdnVehicleStatusResponse);
-                        case StatusCodes.ERROR_COMMAND_SENT_FAILED_RESPONSE:
-                            if (isLockSecureWarningOn(ngsdnVehicleStatusResponse)) {
-                                vehicleProvider.updateCommandEventStatus(vin, ngsdnVehicleStatusResponse);
-                                return Single.just(ngsdnVehicleStatusResponse);
-                            } else if (ngsdnVehicleStatusResponse.getRemoteStartFailures().isPresent()) {
-                                return Single.error(new RemoteStartFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteStartFailures().get().getRemoteStartFailureErrors()));
-                            } else if (ngsdnVehicleStatusResponse.getTrailerLightCheckFailureReason().isPresent()) {
-                                return Single.error(new TrailerLightCheckException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getTrailerLightCheckFailureReason().get()));
-                            } else if (ngsdnVehicleStatusResponse.getRemoteLockFailures().isPresent()) {
-                                return Single.error(new RemoteLockFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteLockFailures().get().getRemoteLockFailureErrors()));
-                            } else {
-                                return Single.error(new NgsdnException(ngsdnVehicleStatusResponse.getStatus()));
-                            }
-                        default:
-                            return Single.error(new NgsdnException(ngsdnVehicleStatusResponse.getStatus()));
-                    }
-                })
-                .doOnError(throwable -> {
-                    if (new NgsdnException(StatusCodes.TCU_FIRMWARE_UPGRADE_IN_PROGRESS).equals(throwable) || new NgsdnException(StatusCodes.TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2).equals(throwable)) {
-                        wasUpgrading = true;
-                    }
-                })
-                .retryWhen(observable -> observable.flatMap((Function<Throwable, Flowable<Long>>) e -> {
-                    if (e instanceof StatusCarryingException) {
-                        StatusCarryingException error = (StatusCarryingException) e;
-                        if (error.getStatusCode() == POLLING_STATUS_CODE) {
-                            if (PollingStrategyUtil.hasRequestTimedOut(requestStartTime, timeProvider.currentTimeMillis())) {
-                                return Flowable.error(new NgsdnException(StatusCodes.ERROR_POLL_TIMEOUT));
-                            } else {
-                                final long delayMillis = PollingStrategyUtil.getRequestDelay(requestStartTime, timeProvider.currentTimeMillis());
-                                return Flowable.timer(delayMillis, TimeUnit.MILLISECONDS, computationScheduler);
-                            }
-                        }
-                    }
-                    return Flowable.error(e);
-                }))
-                .onErrorResumeNext(throwable -> {
-                    if (throwable instanceof NgsdnException && wasUpgrading) {
-                        int statusCode = ((StatusCarryingException) throwable).getStatusCode();
-                        return Single.error(new FirmwareUpgradingException(statusCode));
-                    } else {
-                        return Single.error(throwable);
-                    }
-                })
+                .flatMap(processStatusResponse(vin))
+                .doOnError(this::onErrorProcessing)
+                .retryWhen(onErrorRetry(requestStartTime))
+                .onErrorResumeNext(resumeOnError())
                 .doAfterTerminate(() -> wasUpgrading = false);
+    }
+
+    private Function<NgsdnVehicleStatusResponse, SingleSource<? extends NgsdnVehicleStatusResponse>> processStatusResponse(String vin) {
+        return ngsdnVehicleStatusResponse -> {
+            switch (ngsdnVehicleStatusResponse.getStatus()) {
+                case StatusCodes.SUCCESS:
+                case StatusCodes.COMMAND_PROCESSING:
+                    return getNgsdnVehicleStatus(vin, ngsdnVehicleStatusResponse);
+                case StatusCodes.ERROR_COMMAND_SENT_FAILED_RESPONSE:
+                    return commandErrorFailed(vin, ngsdnVehicleStatusResponse);
+                default:
+                    return Single.error(new NgsdnException(ngsdnVehicleStatusResponse.getStatus()));
+            }
+        };
+    }
+
+    private Function<Throwable, SingleSource<? extends NgsdnVehicleStatusResponse>> resumeOnError() {
+        return throwable -> {
+            if (throwable instanceof NgsdnException && wasUpgrading) {
+                int statusCode = ((StatusCarryingException) throwable).getStatusCode();
+                return Single.error(new FirmwareUpgradingException(statusCode));
+            } else {
+                return Single.error(throwable);
+            }
+        };
+    }
+
+    private Function<Flowable<Throwable>, Publisher<?>> onErrorRetry(long requestStartTime) {
+        return observable -> observable.flatMap((Function<Throwable, Flowable<Long>>) e -> {
+            if (e instanceof StatusCarryingException) {
+                StatusCarryingException error = (StatusCarryingException) e;
+                if (error.getStatusCode() == POLLING_STATUS_CODE) {
+                    if (PollingStrategyUtil.hasRequestTimedOut(requestStartTime, timeProvider.currentTimeMillis())) {
+                        return Flowable.error(new NgsdnException(StatusCodes.ERROR_POLL_TIMEOUT));
+                    } else {
+                        final long delayMillis = PollingStrategyUtil.getRequestDelay(requestStartTime, timeProvider.currentTimeMillis());
+                        return Flowable.timer(delayMillis, TimeUnit.MILLISECONDS, computationScheduler);
+                    }
+                }
+            }
+            return Flowable.error(e);
+        });
+    }
+
+    private void onErrorProcessing(Throwable throwable) {
+        if (new NgsdnException(StatusCodes.TCU_FIRMWARE_UPGRADE_IN_PROGRESS).equals(throwable) || new NgsdnException(StatusCodes.TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2).equals(throwable)) {
+            wasUpgrading = true;
+        }
+    }
+
+    private SingleSource<? extends NgsdnVehicleStatusResponse> commandErrorFailed(String vin, NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
+        if (isLockSecureWarningOn(ngsdnVehicleStatusResponse)) {
+            vehicleProvider.updateCommandEventStatus(vin, ngsdnVehicleStatusResponse);
+            return Single.just(ngsdnVehicleStatusResponse);
+        } else if (ngsdnVehicleStatusResponse.getRemoteStartFailures().isPresent()) {
+            return Single.error(new RemoteStartFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteStartFailures().get().getRemoteStartFailureErrors()));
+        } else if (ngsdnVehicleStatusResponse.getTrailerLightCheckFailureReason().isPresent()) {
+            return Single.error(new TrailerLightCheckException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getTrailerLightCheckFailureReason().get()));
+        } else if (ngsdnVehicleStatusResponse.getRemoteLockFailures().isPresent()) {
+            return Single.error(new RemoteLockFailureException(ngsdnVehicleStatusResponse.getStatus(), ngsdnVehicleStatusResponse.getRemoteLockFailures().get().getRemoteLockFailureErrors()));
+        } else {
+            return Single.error(new NgsdnException(ngsdnVehicleStatusResponse.getStatus()));
+        }
     }
 
     private boolean isLockSecureWarningOn(NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
