@@ -178,11 +178,15 @@ public class NgsdnCommandStatusPoller {
             if (isVehicleStatusInDeepSleepInvalid(vehicleStatus)) {
                 return error(new NgsdnException(StatusCodes.ERROR_DEEP_SLEEP_V2));
             }
-            if (vehicleStatus.getFirmwareUpgInProgress().isPresent() && vehicleStatus.getFirmwareUpgInProgress().get().getValue().or(false)) {
+            if (isVehicleStatusFirmwareUpgInvalid(vehicleStatus)) {
                 return error(new NgsdnException(TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2));
             }
             return Single.just(ngsdnVehicleStatusResponse);
         }
+    }
+
+    private boolean isVehicleStatusFirmwareUpgInvalid(NgsdnVehicleStatusImpl vehicleStatus) {
+        return vehicleStatus.getFirmwareUpgInProgress().isPresent() && vehicleStatus.getFirmwareUpgInProgress().get().getValue().or(false);
     }
 
     private boolean isVehicleStatusInDeepSleepInvalid(NgsdnVehicleStatusImpl vehicleStatus) {
