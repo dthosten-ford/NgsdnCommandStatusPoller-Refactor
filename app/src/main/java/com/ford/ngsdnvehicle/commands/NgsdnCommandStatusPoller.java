@@ -175,7 +175,7 @@ public class NgsdnCommandStatusPoller {
                 return getEventDataStart(vin, ngsdnVehicleStatusResponse);
             }
         } else {
-            if (vehicleStatus.getDeepSleepInProgress().isPresent() && vehicleStatus.getDeepSleepInProgress().get().getValue().or(false)) {
+            if (isVehicleStatusInDeepSleepInvalid(vehicleStatus)) {
                 return error(new NgsdnException(StatusCodes.ERROR_DEEP_SLEEP_V2));
             }
             if (vehicleStatus.getFirmwareUpgInProgress().isPresent() && vehicleStatus.getFirmwareUpgInProgress().get().getValue().or(false)) {
@@ -183,6 +183,18 @@ public class NgsdnCommandStatusPoller {
             }
             return Single.just(ngsdnVehicleStatusResponse);
         }
+    }
+
+    private boolean isVehicleStatusInDeepSleepInvalid(NgsdnVehicleStatusImpl vehicleStatus) {
+        return isVehicleStatusInDeepSleep(vehicleStatus) && isVehicleStatusInDeepSleepValueNull(vehicleStatus); //Validation step
+    }
+
+    private Boolean isVehicleStatusInDeepSleepValueNull(NgsdnVehicleStatusImpl vehicleStatus) {
+        return vehicleStatus.getDeepSleepInProgress().get().getValue().or(false);
+    }
+
+    private boolean isVehicleStatusInDeepSleep(NgsdnVehicleStatusImpl vehicleStatus) {
+        return vehicleStatus.getDeepSleepInProgress().isPresent();
     }
 
     private Single<NgsdnVehicleStatusResponse> getEventData(String vin, NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
