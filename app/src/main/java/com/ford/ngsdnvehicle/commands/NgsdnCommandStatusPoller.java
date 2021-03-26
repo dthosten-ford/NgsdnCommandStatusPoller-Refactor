@@ -161,28 +161,35 @@ public class NgsdnCommandStatusPoller {
 
     private SingleSource<? extends NgsdnVehicleStatusResponse> getNgsdnVehicleStatus(String vin, NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
         NgsdnVehicleStatusImpl vehicleStatus = ngsdnVehicleStatusResponse.getVehicleStatus();
-        if (vehicleStatus == null) {
-            if (ngsdnVehicleStatusResponse.getDoorPresentStatuses() == null) {
-                if (ngsdnVehicleStatusResponse.getCommandEventData().isPresent()) {
-                    return getEventData(vin, ngsdnVehicleStatusResponse);
-                } else if (ngsdnVehicleStatusResponse.getWifiSettingsData().isPresent()) {
-                    vehicleProvider.updateWifiSettings(vin, ngsdnVehicleStatusResponse);
-                    return Single.just(ngsdnVehicleStatusResponse);
-                } else {
-                    return Single.just(ngsdnVehicleStatusResponse);
-                }
-            } else {
-                return getEventDataStart(vin, ngsdnVehicleStatusResponse);
-            }
-        } else {
-            if (isVehicleStatusInDeepSleepInvalid(vehicleStatus)) {
-                return error(new NgsdnException(StatusCodes.ERROR_DEEP_SLEEP_V2));
-            }
-            if (isVehicleStatusFirmwareUpgInvalid(vehicleStatus)) {
-                return error(new NgsdnException(TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2));
+
+        if (vehicleStatus != null) {
+            int statusCode = getStatusCode(vehicleStatus);
+            if (statusCode != -1) {
+                return error(new NgsdnException(statusCode));
             }
             return Single.just(ngsdnVehicleStatusResponse);
         }
+        if (ngsdnVehicleStatusResponse.getDoorPresentStatuses() == null) {
+            if (ngsdnVehicleStatusResponse.getCommandEventData().isPresent()) {
+                return getEventData(vin, ngsdnVehicleStatusResponse);
+            }
+            if (ngsdnVehicleStatusResponse.getWifiSettingsData().isPresent()) {
+                vehicleProvider.updateWifiSettings(vin, ngsdnVehicleStatusResponse);
+                return Single.just(ngsdnVehicleStatusResponse);
+            }
+            return Single.just(ngsdnVehicleStatusResponse);
+        }
+        return getEventDataStart(vin, ngsdnVehicleStatusResponse);
+    }
+
+    private int getStatusCode(NgsdnVehicleStatusImpl vehicleStatus) {
+        if (isVehicleStatusInDeepSleepInvalid(vehicleStatus)) {
+            return StatusCodes.ERROR_DEEP_SLEEP_V2;
+        }
+        if (isVehicleStatusFirmwareUpgInvalid(vehicleStatus)) {
+            return TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2;
+        }
+        return -1;
     }
 
     private boolean isVehicleStatusFirmwareUpgInvalid(NgsdnVehicleStatusImpl vehicleStatus) {
