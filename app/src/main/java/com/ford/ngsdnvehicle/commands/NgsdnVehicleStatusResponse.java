@@ -18,4 +18,6 @@ public interface NgsdnVehicleStatusResponse {
     Optional<RemoteStartFailures> getRemoteStartFailures();
 
     Optional<RemoteLockFailures> getRemoteLockFailures();
+
+    String getVin();
 }
