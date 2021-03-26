@@ -84,11 +84,11 @@ public class NgsdnCommandStatusPoller {
                 .flatMap(this::getNgsdnVehicleStatusExtra)
                 .doOnError(this::processFirmwareUpgradeError)
                 .retryWhen(onErrorRetry(requestStartTime))
-                .onErrorResumeNext(throwable -> resumeOnError(throwable))
+                .onErrorResumeNext(this::resumeOnError)
                 .doAfterTerminate(() -> wasUpgrading = false);
     }
 
-    private SingleSource<? extends NgsdnVehicleStatusResponse> getNgsdnVehicleStatusExtra(NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
+    private SingleSource<NgsdnVehicleStatusResponse> getNgsdnVehicleStatusExtra(NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
         switch (ngsdnVehicleStatusResponse.getStatus()) {
             case SUCCESS:
             case COMMAND_PROCESSING:
@@ -97,17 +97,16 @@ public class NgsdnCommandStatusPoller {
                 return commandErrorFailed(ngsdnVehicleStatusResponse);
             default:
                 return error(new NgsdnException(ngsdnVehicleStatusResponse.getStatus()));
-
         }
     }
 
     @NotNull
-    private SingleSource<? extends NgsdnVehicleStatusResponse> resumeOnError(Throwable throwable) {
+    private SingleSource<NgsdnVehicleStatusResponse> resumeOnError(Throwable throwable) {
         if (throwable instanceof NgsdnException && wasUpgrading) {
             int statusCode = ((StatusCarryingException) throwable).getStatusCode();
-            return error(new FirmwareUpgradingException(statusCode));
+                return Single.error(new FirmwareUpgradingException(statusCode));
         } else {
-            return error(throwable);
+            return Single.error(throwable);
         }
     }
 
@@ -137,7 +136,7 @@ public class NgsdnCommandStatusPoller {
                 new NgsdnException(TCU_FIRMWARE_UPGRADE_IN_PROGRESS_V2).equals(throwable);
     }
 
-    private SingleSource<? extends NgsdnVehicleStatusResponse> commandErrorFailed(NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
+    private SingleSource<NgsdnVehicleStatusResponse> commandErrorFailed(NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
         SingleSource<NgsdnVehicleStatusResponse> ngsdnVehicleResponse;
         if (isLockSecureWarningOn(ngsdnVehicleStatusResponse)) {
             vehicleProvider.updateCommandEventStatus(ngsdnVehicleStatusResponse);
@@ -158,7 +157,7 @@ public class NgsdnCommandStatusPoller {
         return ngsdnVehicleStatusResponse.getCommandEventData().isPresent() && ngsdnVehicleStatusResponse.getCommandEventData().get().getLockSecureWarning() == LOCK_SECURE_WARNING_ON;
     }
 
-    private SingleSource<? extends NgsdnVehicleStatusResponse> getNgsdnVehicleStatus(NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
+    private SingleSource<NgsdnVehicleStatusResponse> getNgsdnVehicleStatus(NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
         NgsdnVehicleStatusImpl vehicleStatus = ngsdnVehicleStatusResponse.getVehicleStatus();
         NgsdnException exception = getNgsdnException(vehicleStatus);
         if(exception != null) {
@@ -227,6 +226,4 @@ public class NgsdnCommandStatusPoller {
     private boolean isResponseDoorStatusPresent(NgsdnVehicleStatusResponse ngsdnVehicleStatusResponse) {
         return ngsdnVehicleStatusResponse.getDoorPresentStatuses() != null;
     }
-
-
 }
